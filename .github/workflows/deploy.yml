@@ -35,6 +35,13 @@ jobs:
           git clone --depth 1 https://github.com/hasaneyldrm/exercises-dataset.git /tmp/exercises-dataset
           npm run catalog:media
 
+      - name: Reject corrupted source placeholders
+        run: |
+          if grep -R --include='*.ts' --include='*.tsx' -l -E '^(FULL|FULL_CONTENT_FROM_DISK)$' src/; then
+            echo "::error::Hay ficheros fuente con placeholders corruptos (FULL / FULL_CONTENT_FROM_DISK). Restaura el contenido real antes de desplegar."
+            exit 1
+          fi
+
       - name: Build
         run: |
           if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
