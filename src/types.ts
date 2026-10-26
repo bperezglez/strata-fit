@@ -56,6 +56,8 @@ export interface WorkoutLog {
   weekKey: string
   day: DayId
   exercises: Record<string, SetEntry[]>
+  /** Exercise ids marked finished for this session (UI collapse, order hint). */
+  doneExercises?: string[]
   updatedAt: number
 }
 
