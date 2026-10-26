@@ -60,7 +60,14 @@ export function emptySet(): SetEntry {
 }
 
 function hasData(log: WorkoutLog) {
-  return Object.values(log.exercises).some((sets) => sets.length > 0)
+  if (Object.values(log.exercises).some((sets) => sets.length > 0)) return true
+  return (log.doneExercises?.length ?? 0) > 0
+}
+
+function withoutDoneFlag(doneExercises: string[] | undefined, exerciseId: string): string[] | undefined {
+  if (!doneExercises?.length) return doneExercises
+  const next = doneExercises.filter((id) => id !== exerciseId)
+  return next.length ? next : undefined
 }
 
 function schedulePersist(id: string) {
@@ -112,7 +119,15 @@ function mutateExercise(
   const exercises = { ...current.exercises }
   if (nextSets.length) exercises[exerciseId] = nextSets
   else delete exercises[exerciseId]
-  writeLog(id, { ...current, exercises, updatedAt: Date.now() })
+  const doneExercises =
+    nextSets.length === 0 ? withoutDoneFlag(current.doneExercises, exerciseId) : current.doneExercises
+  writeLog(id, { ...current, exercises, doneExercises, updatedAt: Date.now() })
+}
+
+function patchLog(weekKey: string, day: DayId, patch: (log: WorkoutLog) => WorkoutLog) {
+  const id = logId(weekKey, day)
+  const current = state.logs[id] ?? { id, weekKey, day, exercises: {}, updatedAt: 0 }
+  writeLog(id, patch(current))
 }
 
 let initPromise: Promise<void> | null = null
@@ -261,6 +276,20 @@ export const actions = {
     mutateExercise(weekKey, day, exerciseId, () => sets.map((s) => ({ ...s, id: uid() })))
   },
 
+  setExerciseDone(weekKey: string, day: DayId, exerciseId: string, done: boolean) {
+    patchLog(weekKey, day, (log) => {
+      const set = new Set(log.doneExercises ?? [])
+      if (done) set.add(exerciseId)
+      else set.delete(exerciseId)
+      const doneExercises = [...set]
+      return {
+        ...log,
+        doneExercises: doneExercises.length ? doneExercises : undefined,
+        updatedAt: Date.now(),
+      }
+    })
+  },
+
   /** Copies the most recent earlier session of this weekday into `weekKey`. */
   copyPreviousDay(weekKey: string, day: DayId): string | null {
     const source = findPreviousLog(state.logs, weekKey, day)
@@ -365,11 +394,16 @@ function parseImport(raw: unknown): WorkoutLog[] {
         distance: numOrNull(s.distance),
       }))
     }
+    const doneRaw = (l as WorkoutLog).doneExercises
+    const doneExercises = Array.isArray(doneRaw)
+      ? [...new Set(doneRaw.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      : undefined
     return {
       id: logId(l.weekKey, l.day),
       weekKey: l.weekKey,
       day: l.day,
       exercises,
+      doneExercises: doneExercises?.length ? doneExercises : undefined,
       updatedAt: typeof l.updatedAt === 'number' ? l.updatedAt : Date.now(),
     }
   })
