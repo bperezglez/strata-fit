@@ -33,6 +33,16 @@ export function DaySession({ day, weekKey }: { day: DayTemplate; weekKey: string
     .filter((e) => e.kind === 'cardio')
     .reduce((acc, e) => acc + exerciseStats(log?.exercises[e.id], e.kind).totalDuration, 0)
   const dayIndex = dayIndexOf(routineDays, day.id)
+  const doneIds = useMemo(() => new Set(log?.doneExercises ?? []), [log?.doneExercises])
+  const orderedExercises = useMemo(() => {
+    const list = visibleExercises.map((ex, i) => ({ ex, i }))
+    return list.sort((a, b) => {
+      const aDone = doneIds.has(a.ex.id)
+      const bDone = doneIds.has(b.ex.id)
+      if (aDone !== bDone) return aDone ? 1 : -1
+      return a.i - b.i
+    })
+  }, [visibleExercises, doneIds])
 
   const copyPrevious = () => {
     const from = actions.copyPreviousDay(weekKey, day.id)
@@ -121,7 +131,7 @@ export function DaySession({ day, weekKey }: { day: DayTemplate; weekKey: string
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        {visibleExercises.map((ex, i) => (
+        {orderedExercises.map(({ ex, i }) => (
           <ExerciseCard
             key={ex.id}
             index={i}
@@ -130,6 +140,7 @@ export function DaySession({ day, weekKey }: { day: DayTemplate; weekKey: string
             day={day.id}
             accent={day.accent}
             sets={log?.exercises[ex.id] ?? EMPTY}
+            done={doneIds.has(ex.id)}
             previous={
               previousLog?.exercises[ex.id]
                 ? { weekKey: previousLog.weekKey, sets: previousLog.exercises[ex.id] }
